@@ -1,6 +1,6 @@
 # PhishGuard: Rule-Based Phishing URL Detector
 
-![CI](https://github.com/OWNER/phishguard/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Kanhaiyathakur001/PhishGuard/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -21,8 +21,8 @@ It ships as a command-line tool, a web app and a JSON API. There is **no machine
 
 ## Quick start
 ```bash
-git clone https://github.com/OWNER/phishguard.git
-cd phishguard
+git clone https://github.com/Kanhaiyathakur001/PhishGuard.git
+cd PhishGuard
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
