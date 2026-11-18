@@ -13,7 +13,7 @@ def test_index_and_health():
     c = client()
     assert c.get("/").status_code == 200
     h = c.get("/health").get_json()
-    assert h["status"] == "ok"
+    assert h["status"] == "ok" and "model_loaded" not in h
 
 
 def test_api_single():

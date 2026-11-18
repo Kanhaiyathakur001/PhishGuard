@@ -18,11 +18,9 @@ def print_result(r: dict) -> None:
     if not r["valid"]:
         print(f"RISK  : INVALID ({r['error']})")
         return
-    ml = "n/a" if r["ml_probability"] is None else f"{r['ml_probability'] * 100:.1f}%"
-    print(f"RISK  : {r['risk']}  (score {r['score']}/100)")
-    print(f"MODE  : {r['mode']} | ML phishing probability: {ml} | rule score: {r['rule_score']}")
-    if r.get("trusted_domain"):
-        print("NOTE  : domain is in the top-20k popular list (score capped unless rules are HIGH)")
+    print(f"RISK  : {r['risk']}  (score {r['score']}/100, raw rule score {r['rule_score']})")
+    if r.get("allowlist_applied"):
+        print("NOTE  : domain is in the top-20k popular list, so the score was capped at LOW")
     if r["findings"]:
         print("WHY   :")
         for f in r["findings"]:
@@ -35,18 +33,18 @@ def write_csv(results: list, path: str) -> None:
     with open(path, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["timestamp", "url_defanged", "risk", "score",
-                    "ml_probability", "rule_score", "findings"])
+                    "rule_score", "findings"])
         now = datetime.now().isoformat(timespec="seconds")
         for r in results:
             w.writerow([now, r["url_defanged"], r["risk"], r["score"],
-                        r.get("ml_probability", ""), r.get("rule_score", ""),
+                        r.get("rule_score", ""),
                         " | ".join(r["findings"]) or r.get("error", "")])
     print(f"\nResults saved to {path}")
 
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="phishguard",
-                                description="PhishGuard: hybrid phishing URL detector")
+                                description="PhishGuard: rule-based phishing URL detector")
     p.add_argument("url", nargs="*", help="One or more URLs to analyze")
     p.add_argument("-f", "--file", help="Text file with one URL per line ('#' = comment)")
     p.add_argument("-o", "--output", help="Save results to a CSV file")

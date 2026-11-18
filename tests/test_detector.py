@@ -1,7 +1,4 @@
 from phishguard.detector import analyze
-from phishguard.model import load_model
-
-needs_model = load_model() is not None
 
 
 def test_empty_and_invalid():
@@ -12,7 +9,8 @@ def test_empty_and_invalid():
 
 def test_result_shape():
     r = analyze("https://www.google.com/")
-    for k in ("url", "url_defanged", "valid", "risk", "score", "findings", "rule_score"):
+    for k in ("url", "url_defanged", "valid", "risk", "score", "findings", "rule_score",
+              "trusted_domain", "allowlist_applied"):
         assert k in r
     assert 0 <= r["score"] <= 100
 
@@ -22,12 +20,10 @@ def test_defanged_output():
     assert "hxxp://" in r["url_defanged"] and "[.]" in r["url_defanged"]
 
 
-def test_falls_back_to_rules_without_model(monkeypatch):
-    from phishguard import model as m
-    monkeypatch.setattr(m, "predict_proba", lambda *a, **k: None)
+def test_score_equals_rule_score_without_allowlist():
     r = analyze("http://paypa1-login.secure.example.xyz/verify")
-    assert r["mode"] == "rules-only" and r["ml_probability"] is None
-    assert r["score"] == r["rule_score"] and r["risk"] == "HIGH"
+    assert r["score"] == r["rule_score"] == 65 and r["risk"] == "HIGH"
+    assert r["allowlist_applied"] is False
 
 
 def test_phishing_vs_legit_ordering():
@@ -35,14 +31,6 @@ def test_phishing_vs_legit_ordering():
     good = analyze("https://www.wikipedia.org/")
     assert bad["score"] > good["score"]
     assert bad["risk"] in ("MEDIUM", "HIGH") and good["risk"] == "LOW"
-
-
-def test_hybrid_mode_when_model_present():
-    if not needs_model:
-        return
-    r = analyze("https://www.wikipedia.org/")
-    assert r["mode"].startswith("hybrid") and 0 <= r["ml_probability"] <= 1
-    assert len(r["signals"]) == 5
 
 
 # ---- popularity allowlist ---------------------------------------------------
@@ -60,26 +48,42 @@ REAL_LEGIT = [
     "https://www.sbi.co.in/web/personal-banking",
     "https://stackoverflow.com/questions/11227809/why-is-processing-a-sorted-array-faster",
 ]
-REAL_PHISH = [
-    "http://secure-paypal-update.com/login.php",
+PHISH_HIGH = [
     "http://amaz0n-account-verify.top/signin",
     "http://185.234.12.9/wp-includes/secure/office365/login.html",
     "https://netflix.com.billing-update.work/account",
     "http://appleid.apple.com.verify-id.icu/confirm",
+]
+PHISH_MEDIUM = [
+    "http://secure-paypal-update.com/login.php",       # only keywords + no HTTPS
+    "https://sbi-online-kyc-update.xyz/login",         # brand not in the rule's brand list
+]
+# Known limitation of lexical rules: nothing structural is wrong with these URLs.
+PHISH_MISSED = [
     "https://sites.google.com/view/metamask-wallet-recover/home",
+    "https://bafybeigdyrzt5.ipfs.dweb.link/login.html",
 ]
 
 
-@pytest.mark.skipif(not needs_model, reason="model not trained")
 @pytest.mark.parametrize("url", REAL_LEGIT)
 def test_known_legit_sites_are_low(url):
     assert analyze(url)["risk"] == "LOW"
 
 
-@pytest.mark.skipif(not needs_model, reason="model not trained")
-@pytest.mark.parametrize("url", REAL_PHISH)
+@pytest.mark.parametrize("url", PHISH_HIGH)
 def test_known_phishing_patterns_are_high(url):
     assert analyze(url)["risk"] == "HIGH"
+
+
+@pytest.mark.parametrize("url", PHISH_MEDIUM)
+def test_weaker_phishing_patterns_are_medium(url):
+    assert analyze(url)["risk"] == "MEDIUM"
+
+
+@pytest.mark.parametrize("url", PHISH_MISSED)
+def test_documented_misses_stay_low(url):
+    """Documents a real limitation (see README). If rules change, revisit this."""
+    assert analyze(url)["risk"] == "LOW"
 
 
 def test_allowlist_matches_registered_domain_only():
@@ -93,6 +97,20 @@ def test_user_content_platforms_never_trusted():
     for host in ("sites.google.com", "someone.github.io", "foo.blogspot.com",
                  "x.workers.dev", "bucket.s3.amazonaws.com"):
         assert not is_trusted(host), host
+
+
+def test_allowlist_caps_score_at_low():
+    # 'signin' + 'service' style keywords push the raw rule score to 30 (MEDIUM);
+    # the trusted domain brings the final score back down to LOW
+    url = "https://accounts.google.com/signin/v2/identifier?service=mail&continue=https%3A%2F%2Fmail.google.com"
+    r = analyze(url)
+    assert r["rule_score"] == 30 and r["score"] == 20 and r["allowlist_applied"] and r["risk"] == "LOW"
+
+
+def test_allowlist_does_not_hide_strong_signals():
+    # trusted domain + '@' trick + suspicious TLD + keyword => rules reach HIGH, allowlist bypassed
+    r = analyze("https://google.com@evil-site.top/login")
+    assert r["risk"] == "HIGH" and r["allowlist_applied"] is False
 
 
 def test_trusted_flag_in_result():

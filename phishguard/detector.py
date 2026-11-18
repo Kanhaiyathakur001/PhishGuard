@@ -1,25 +1,25 @@
-"""Hybrid detector: ML probability + explainable rule score.
+"""Detector: explainable rule score + popularity allowlist.
 
-combined_score = 0.7 * (ML probability * 100) + 0.3 * rule_score   (if a model exists)
-combined_score = rule_score                                         (rules-only fallback)
+    raw_score = sum of the points of every rule that fires (0-100, see rules.py)
 
-Popularity allowlist: if the registered domain is one of the 20k most popular
-domains (and not a user-content platform, see trust.py) and the rules score is
-below 50, the combined score is capped at 20 (LOW). URL text alone cannot tell
-that paypal.com/signin is the real PayPal; a reputation list can.
+Popularity allowlist: if the registered domain is one of the 20,000 most popular
+domains (and not a user-content platform, see trust.py) and raw_score is below
+50, the final score is capped at 20 (LOW). URL text alone cannot tell that
+paypal.com/signin is the real PayPal; a reputation list can.
 
 Risk bands: 0-24 LOW, 25-49 MEDIUM, 50+ HIGH.
+
+No network request is ever made: the URL is analysed purely as text.
 """
 
-from . import model as ml
 from .rules import defang, parse, risk_from_score, run_rules
 from .trust import is_trusted
 
-ML_WEIGHT = 0.7
-RULE_WEIGHT = 0.3
+ALLOWLIST_CAP = 20      # final score cap for trusted domains
+ALLOWLIST_BYPASS = 50   # rules at/above this score override the allowlist
 
 
-def analyze(raw_url: str, model=None) -> dict:
+def analyze(raw_url: str) -> dict:
     """Analyse one URL. Never makes a network request."""
     raw_url = (raw_url or "").strip()
     base = {"url": raw_url, "url_defanged": defang(raw_url)}
@@ -35,28 +35,20 @@ def analyze(raw_url: str, model=None) -> dict:
         return {**base, "valid": False, "risk": "INVALID", "score": 0,
                 "error": str(exc), "findings": []}
 
-    prob = ml.predict_proba(raw_url, model)
-    if prob is None:
-        score, mode = rules["score"], "rules-only"
-    else:
-        score = round(ML_WEIGHT * prob * 100 + RULE_WEIGHT * rules["score"])
-        mode = "hybrid"
-
+    score = rules["score"]
     trusted = is_trusted(parse(raw_url)[2])
-    if trusted and rules["score"] < 50:
-        score = min(score, 20)
-        mode += "+allowlist"
+    # allowlist_applied is True only when the allowlist actually lowered the score
+    allowlist_applied = trusted and ALLOWLIST_CAP < score < ALLOWLIST_BYPASS
+    if trusted and score < ALLOWLIST_BYPASS:
+        score = min(score, ALLOWLIST_CAP)
 
     return {
         **base,
         "valid": True,
         "trusted_domain": trusted,
-        "mode": mode,
+        "allowlist_applied": allowlist_applied,
         "score": int(min(score, 100)),
         "risk": risk_from_score(score),
-        "ml_probability": None if prob is None else round(prob, 4),
-        "rule_score": rules["score"],
-        "rule_risk": rules["risk"],
+        "rule_score": rules["score"],      # before the allowlist
         "findings": [f"(+{p}) {msg}" for p, msg in rules["findings"]],
-        "signals": ml.top_signals(raw_url, model) if prob is not None else [],
     }

@@ -14,7 +14,6 @@ from flask import Flask, jsonify, render_template, request
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from phishguard import __version__  # noqa: E402
 from phishguard.detector import analyze  # noqa: E402
-from phishguard.model import load_model  # noqa: E402
 
 MAX_BATCH = 100
 
@@ -48,7 +47,7 @@ def create_app() -> Flask:
 
     @app.get("/health")
     def health():
-        return jsonify(status="ok", version=__version__, model_loaded=load_model() is not None)
+        return jsonify(status="ok", version=__version__)
 
     return app
 

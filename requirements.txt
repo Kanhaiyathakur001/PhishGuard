@@ -1,6 +1,2 @@
 flask>=3.0
-scikit-learn>=1.9,<1.10   # model.joblib was trained with 1.9; re-run scripts/train.py if you use another version
-numpy>=1.26
-joblib>=1.3
-matplotlib>=3.8   # only needed to re-train / regenerate report plots
 pytest>=8.0       # only needed to run the tests

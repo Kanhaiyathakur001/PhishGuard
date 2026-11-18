@@ -1,8 +1,9 @@
 """Popularity allowlist ("trusted domains").
 
-Pure URL-text ML models cannot know that paypal.com/signin is the *real* PayPal.
-Production systems therefore combine ML with a reputation list. PhishGuard uses
-the top 20,000 most popular domains (data/top_domains.txt).
+URL text alone cannot tell that paypal.com/signin is the *real* PayPal (the word
+"signin" looks suspicious to a keyword rule). Production systems therefore combine
+heuristics with a reputation list. PhishGuard uses the top 20,000 most popular
+domains (data/top_domains.txt).
 
 Safety rules:
 * The match is on the *registered domain* only, so 'paypal.com.evil.xyz' (whose

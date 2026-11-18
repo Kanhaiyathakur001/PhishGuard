@@ -1,0 +1,117 @@
+{
+  "rows": 40000,
+  "phishing": 20000,
+  "legitimate": 20000,
+  "results": {
+    "rules only | MEDIUM or higher": {
+      "accuracy": 0.5957,
+      "precision": 0.987,
+      "recall": 0.194,
+      "f1": 0.3243,
+      "false_positive_rate": 0.0026,
+      "confusion_matrix": {
+        "tp": 3880,
+        "fp": 51,
+        "tn": 19949,
+        "fn": 16120
+      }
+    },
+    "rules only | HIGH only": {
+      "accuracy": 0.5141,
+      "precision": 1.0,
+      "recall": 0.0283,
+      "f1": 0.0549,
+      "false_positive_rate": 0.0,
+      "confusion_matrix": {
+        "tp": 565,
+        "fp": 0,
+        "tn": 20000,
+        "fn": 19435
+      }
+    },
+    "rules + allowlist | MEDIUM or higher": {
+      "accuracy": 0.5956,
+      "precision": 0.9885,
+      "recall": 0.1934,
+      "f1": 0.3235,
+      "false_positive_rate": 0.0022,
+      "confusion_matrix": {
+        "tp": 3868,
+        "fp": 45,
+        "tn": 19955,
+        "fn": 16132
+      }
+    },
+    "rules + allowlist | HIGH only": {
+      "accuracy": 0.5141,
+      "precision": 1.0,
+      "recall": 0.0283,
+      "f1": 0.0549,
+      "false_positive_rate": 0.0,
+      "confusion_matrix": {
+        "tp": 565,
+        "fp": 0,
+        "tn": 20000,
+        "fn": 19435
+      }
+    }
+  },
+  "rule_firing_rate": {
+    "Raw IP host": {
+      "phishing": 0.0173,
+      "legitimate": 0.0
+    },
+    "Excessive subdomains": {
+      "phishing": 0.0091,
+      "legitimate": 0.0001
+    },
+    "Suspicious TLD": {
+      "phishing": 0.1173,
+      "legitimate": 0.0008
+    },
+    "'@' in URL": {
+      "phishing": 0.0,
+      "legitimate": 0.0
+    },
+    "URL shortener": {
+      "phishing": 0.0,
+      "legitimate": 0.0
+    },
+    "Phishing keywords": {
+      "phishing": 0.2288,
+      "legitimate": 0.0047
+    },
+    "Very long URL": {
+      "phishing": 0.2939,
+      "legitimate": 0.1671
+    },
+    "Many hyphens in host": {
+      "phishing": 0.0269,
+      "legitimate": 0.0013
+    },
+    "Punycode": {
+      "phishing": 0.0022,
+      "legitimate": 0.0004
+    },
+    "Lookalike (leet)": {
+      "phishing": 0.0001,
+      "legitimate": 0.0
+    },
+    "No HTTPS": {
+      "phishing": 0.2625,
+      "legitimate": 0.2682
+    },
+    "Brand on wrong domain": {
+      "phishing": 0.075,
+      "legitimate": 0.0014
+    },
+    "Double slash in path": {
+      "phishing": 0.0009,
+      "legitimate": 0.0001
+    },
+    "Non-standard port": {
+      "phishing": 0.0019,
+      "legitimate": 0.0003
+    }
+  }
+}

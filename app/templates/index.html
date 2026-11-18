@@ -57,20 +57,16 @@
     {% if result.valid %}
       <div class="bar" role="img" aria-label="Risk score {{ result.score }} out of 100"><span style="width:{{ result.score }}%"></span></div>
       <div class="grid">
-        <div><b>{{ result.score }}/100</b><span class="muted">Combined score</span></div>
-        <div><b>{% if result.ml_probability is not none %}{{ '%.1f' % (result.ml_probability * 100) }}%{% else %}n/a{% endif %}</b><span class="muted">ML phishing probability</span></div>
-        <div><b>{{ result.rule_score }}/100</b><span class="muted">Rule score</span></div>
+        <div><b>{{ result.score }}/100</b><span class="muted">Final score</span></div>
+        <div><b>{{ result.rule_score }}/100</b><span class="muted">Raw rule score</span></div>
+        <div><b>{{ result.findings|length }}</b><span class="muted">Rules triggered</span></div>
       </div>
-      {% if result.trusted_domain %}<p class="muted">This domain is on the list of the 20,000 most popular websites, which lowers the score.</p>{% endif %}
+      {% if result.allowlist_applied %}<p class="muted">This domain is on the list of the 20,000 most popular websites, so the score was capped at LOW.</p>{% endif %}
       <strong>Why?</strong>
       {% if result.findings %}
         <ul>{% for f in result.findings %}<li>{{ f }}</li>{% endfor %}</ul>
       {% else %}
         <p class="muted">No rule-based indicators were triggered.</p>
-      {% endif %}
-      {% if result.signals %}
-        <p class="muted" style="margin-top:14px">Most influential model features for this URL:
-        {% for s in result.signals %}<code>{{ s.feature }}={{ s.value }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</p>
       {% endif %}
     {% else %}
       <p>{{ result.error }}</p>

@@ -1,29 +1,23 @@
-# PhishGuard: Hybrid Phishing URL Detector
+# PhishGuard: Rule-Based Phishing URL Detector
 
 ![CI](https://github.com/OWNER/phishguard/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-PhishGuard classifies a URL as **LOW / MEDIUM / HIGH** phishing risk by combining
+PhishGuard classifies a URL as **LOW / MEDIUM / HIGH** phishing risk using
 
-1. an **explainable rule engine** (12 weighted heuristics, each with a plain-English reason), and
-2. a **machine-learning model** (Gradient Boosting on 37 lexical URL features) trained on ~40,000 real URLs,
+1. an **explainable rule engine**: 12 weighted heuristics, each with a plain-English reason, and
+2. a **popularity allowlist** (top 20,000 domains) so well-known sites are not flagged by mistake.
 
-plus a **popularity allowlist** to avoid flagging well-known sites. It ships as a command-line tool, a web app, and a JSON API. URLs are analysed **as text only: PhishGuard never visits them.**
-
-| Phishing URL | Legitimate URL |
-|---|---|
-| ![phishing](docs/screenshot_phishing.png) | ![legit](docs/screenshot_legit.png) |
-
-> This project extends an earlier single-file, rule-based detector. The original 12 rules are kept (`phishguard/rules.py`) and are now one component of a larger system.
+It ships as a command-line tool, a web app and a JSON API. There is **no machine learning**: every score can be traced to the exact rules that produced it. URLs are analysed **as text only; PhishGuard never visits them.**
 
 ## Features
-- Hybrid scoring: `0.7 × ML probability + 0.3 × rule score` (falls back to rules-only if no model is present)
-- Explains every verdict: which rules fired and which model features mattered
+- 12 weighted rules; every rule that fires explains itself
+- Allowlist that cannot be abused (matches the registered domain only; user-content platforms such as `github.io` or `sites.google.com` are never trusted)
 - Defanged output (`hxxp://example[.]com`) so results are safe to paste into tickets
 - CLI (single URL, many URLs, bulk file, CSV export), Flask web UI, and REST API
-- Reproducible pipeline: dataset builder → feature extraction → training → evaluation plots
-- 53 automated tests and GitHub Actions CI
+- Evaluation script that measures the rules on 40,000 labelled URLs
+- 50 automated tests and GitHub Actions CI
 
 ## Quick start
 ```bash
@@ -55,8 +49,7 @@ curl -X POST http://127.0.0.1:5000/api/analyze \
 **Example output**
 ```
 URL   : hxxp://paypa1-login[.]secure[.]example[.]xyz/verify
-RISK  : HIGH  (score 90/100)
-MODE  : hybrid | ML phishing probability: 100.0% | rule score: 65
+RISK  : HIGH  (score 65/100, raw rule score 65)
 WHY   :
    - (+15) Suspicious top-level domain: .xyz
    - (+20) Credential-harvesting keywords: login, verify, secure
@@ -66,9 +59,9 @@ WHY   :
 
 ## How it works
 ```
- URL ──► parse ──┬─► rule engine (12 rules) ───────────────┐
-                 ├─► 37 lexical features ─► Gradient Boosting ─┼─► 0.7·ML + 0.3·rules ─► allowlist check ─► LOW / MEDIUM / HIGH
-                 └─► registered domain ─► top-20k allowlist ┘
+ URL ──► parse ──► 12 rules ──► sum of points (max 100) ──► allowlist check ──► LOW / MEDIUM / HIGH
+                                                              (top-20k domain and raw score < 50
+                                                               → final score capped at 20)
 ```
 Risk bands: **0–24 LOW, 25–49 MEDIUM, 50+ HIGH.**
 
@@ -88,30 +81,37 @@ Risk bands: **0–24 LOW, 25–49 MEDIUM, 50+ HIGH.**
 | 11 | Double slash in path | 10 |
 | 12 | Non-standard port | 10 |
 
-Weights reflect how specific each signal is: structural tricks that almost never appear on honest sites (`@` in authority, raw IP host, brand on the wrong domain) score highest; signals that also occur on legitimate sites (no HTTPS, long URL) score lowest. The weights are expert-chosen heuristics, not fitted values, which is why an ML model sits alongside them.
+Weights reflect how specific each signal is: structural tricks that almost never appear on honest sites (`@` in authority, raw IP host, brand on the wrong domain) score highest; signals that also occur on legitimate sites (no HTTPS, long URL) score lowest. **The weights are expert-chosen heuristics, not values fitted to data.**
 
-### The ML model
-37 features computed from the URL string only (length, character counts and ratios, entropy of host/path, subdomain count, TLD, keyword and brand signals, longest token, hex-token presence, …); see `phishguard/features.py`. Four classifiers were compared and the best by ROC-AUC was kept (Gradient Boosting; it also gave the smallest model file, ~200 KB).
+### The allowlist
+URL text alone cannot tell that `paypal.com/signin` is the genuine PayPal (the word "signin" trips a keyword rule). If the registered domain is in the top 20,000 most popular domains, and the raw rule score is below 50, the final score is capped at 20 (LOW). Strong signals still win: `https://google.com@evil-site.top/login` is HIGH because the real host is `evil-site.top`, not a trusted domain.
 
-## Results
-Dataset: **40,000 URLs** (20,000 phishing, 20,000 legitimate). Evaluation uses an 80/20 split **grouped by registered domain**: no domain appears in both training and test sets, so the scores measure generalisation to unseen sites rather than memorisation.
+## Evaluation
+`python scripts/evaluate.py` runs the rules on `data/dataset.csv` (20,000 phishing + 20,000 legitimate URLs). No training is involved, so the whole file is a test set. Results are saved in `reports/rule_evaluation.json`.
 
-| Model | Accuracy | Precision | Recall | F1 | ROC-AUC |
+| Setting | Accuracy | Precision | Recall | F1 | False-positive rate |
 |---|---|---|---|---|---|
-| Logistic Regression | 0.826 | 0.889 | 0.749 | 0.813 | 0.907 |
-| Decision Tree | 0.830 | 0.897 | 0.750 | 0.817 | 0.899 |
-| Random Forest | 0.884 | 0.900 | 0.867 | 0.883 | 0.952 |
-| **Gradient Boosting (selected)** | **0.885** | 0.911 | 0.854 | 0.882 | **0.957** |
-| Rules only (original project) | 0.591 | 0.994 | 0.190 | 0.319 | 0.678 |
-| Hybrid, MEDIUM+ counts as phishing | 0.874 | 0.845 | 0.918 | 0.880 | 0.956 |
-| Hybrid, only HIGH counts | 0.863 | 0.957 | 0.761 | 0.848 | 0.956 |
+| Rules + allowlist, MEDIUM or higher counts as phishing | 0.596 | 0.989 | 0.193 | 0.324 | 0.2% |
+| Rules + allowlist, only HIGH counts | 0.514 | 1.000 | 0.028 | 0.055 | 0.0% |
 
-Reading the table honestly:
-- The **rules alone are extremely precise (99%) but miss ~81% of phishing** since most real phishing URLs don't trip any of the 12 rules. ML raises recall from 19% to ~85%.
-- The hybrid's value is **explainability and a safe fallback**, plus a tunable trade-off (MEDIUM+ favours recall at 92%, HIGH-only favours precision at 96% with a 3.4% false-positive rate, both measured before the allowlist). Pure ML is slightly more accurate on this benchmark.
-- Reports and plots: [`reports/metrics.json`](reports/metrics.json), [`confusion_matrix.png`](reports/confusion_matrix.png), [`roc_curve.png`](reports/roc_curve.png), [`feature_importance.png`](reports/feature_importance.png).
+**Reading this honestly:** the rules are extremely precise (when they flag a URL it is almost always phishing, 45 false alarms in 20,000 legitimate URLs) but they **miss about 80% of the phishing URLs** in this dataset, because most real phishing URLs do not use any of the 12 tricks. They are a transparent first-line filter, not a complete defence.
 
-**Real-world spot check.** On a small hand-picked set of 20 well-known legitimate URLs (GitHub, PayPal, Google sign-in, Wikipedia, Amazon, SBI, …) and 8 phishing-style URLs, the full system labels 19/20 legitimate URLs LOW and all 8 phishing URLs HIGH. The one miss is a Google Drive share link, which is deliberately *not* allowlisted because Drive is widely abused. This set is tiny and written by the authors, so treat it as a sanity check, not a benchmark. Run it with `python scripts/real_world_check.py` (a subset is also asserted in `tests/test_detector.py`).
+Which rules actually fire (share of URLs, from the same run):
+
+| Rule | Phishing | Legitimate |
+|---|---|---|
+| Phishing keywords | 22.9% | 0.5% |
+| Suspicious TLD | 11.7% | 0.1% |
+| Brand on wrong domain | 7.5% | 0.1% |
+| Many hyphens in host | 2.7% | 0.1% |
+| Raw IP host | 1.7% | 0.0% |
+| Excessive subdomains | 0.9% | 0.0% |
+| Very long URL | 29.4% | 16.7% |
+| No HTTPS | 26.2% | 26.8% |
+
+"No HTTPS" fires equally on both classes (the dataset deliberately matches the HTTPS rate) and "Very long URL" is only weakly discriminating, which is why both carry low weights.
+
+**Real-world spot check.** On 20 hand-picked well-known legitimate URLs (GitHub, PayPal, Google sign-in, Wikipedia, Amazon, SBI, …) all 20 are rated LOW. On 8 phishing-style URLs, 4 are HIGH, 2 are MEDIUM and 2 are LOW (a Google Sites page and an IPFS-hosted page, which look structurally normal). This set is tiny and written by the authors, so it is a sanity check, not a benchmark. Run it with `python scripts/real_world_check.py`.
 
 ## Dataset
 | Class | Source |
@@ -120,38 +120,38 @@ Reading the table honestly:
 | Legitimate (75%) | "good" URLs from [faizann24/Using-machine-learning-to-detect-malicious-URLs](https://github.com/faizann24/Using-machine-learning-to-detect-malicious-URLs) |
 | Legitimate (25%) | Homepages of top-ranked domains, [zer0h/top-1000000-domains](https://github.com/zer0h/top-1000000-domains) |
 
-Stored defanged in `data/dataset.csv`. Details and caveats: [`data/README.md`](data/README.md). Rebuild with `python scripts/build_dataset.py --help`.
+Stored defanged in `data/dataset.csv`. Details and caveats: [`data/README.md`](data/README.md).
 
-## Re-training
+## Tests
 ```bash
-python scripts/train.py        # ~1 min; rewrites models/model.joblib and reports/*
-pytest -q
+pytest -q        # 50 tests
 ```
 
 ## Project structure
 ```
-phishguard/        rules.py  features.py  model.py  trust.py  detector.py  cli.py
+phishguard/        rules.py  trust.py  detector.py  cli.py
 app/               Flask app + HTML template
-scripts/           build_dataset.py  train.py
+scripts/           evaluate.py  real_world_check.py  build_dataset.py
 data/              dataset.csv  top_domains.txt  README.md
-models/            model.joblib
-reports/           metrics.json + plots
-tests/             53 pytest tests
-docs/              PROJECT_REPORT.md  screenshots
+reports/           rule_evaluation.json
+tests/             pytest tests
+docs/              PROJECT_REPORT.md
 .github/workflows/ ci.yml
 ```
 
 ## Limitations
-- **Lexical only.** It never fetches the page, checks WHOIS/domain age, TLS certificates, or live blocklists, so a phishing page on a clean-looking domain can score LOW.
-- **Dataset bias.** Legitimate URLs come from an older crawl (DMOZ era) and a domain ranking, while phishing URLs are recent. The model may partly learn "old-style URL vs modern URL". The ~88% figure should not be expected to hold on arbitrary real traffic. Modern legitimate URLs (long tracking query strings, app-style paths) are under-represented.
-- **Allowlist trade-off.** Popular domains are capped at LOW, so a compromised popular site or an open redirect on one would be under-reported. The allowlist cannot be fairly scored on this dataset because the legitimate homepages were drawn from the same ranking.
-- **Static feed.** Phishing tactics change; the model needs periodic re-training on fresh data.
+- **Low recall.** The rules catch roughly 1 in 5 phishing URLs in the dataset. A phishing page on a clean-looking or compromised domain scores LOW.
+- **Lexical only.** It never fetches the page or checks WHOIS/domain age, TLS certificates, page content or live blocklists.
+- **Hand-set weights and lists.** The weights, the brand list, the TLD list and the keyword list were chosen by hand and will not cover every brand or every new trick.
+- **Dataset bias.** Legitimate URLs come from an older crawl and a domain ranking, while phishing URLs are recent, so the figures are indicative, not a guarantee for real traffic. The allowlist cannot be fairly scored on this dataset because some legitimate homepages came from the same ranking.
+- **Allowlist trade-off.** Popular domains are capped at LOW unless the rules reach HIGH, so a compromised popular site or an open redirect on one would be under-reported.
 - A LOW result is **not** a guarantee of safety.
 
 ## Future work
-- Page-content and visual-similarity features; WHOIS/domain age; certificate features
-- VirusTotal / URLScan.io lookups for MEDIUM+ results
-- Fresher and larger benign data (e.g. Tranco list + crawled URLs) and a time-based split
+- Domain age (WHOIS), certificate and DNS features
+- VirusTotal / PhishTank / Google Safe Browsing lookups for MEDIUM+ results
+- Tune the rule weights on labelled data, and add rules for more brands and tactics
+- Page-content and visual-similarity checks
 - Browser extension front-end
 
 ## Author

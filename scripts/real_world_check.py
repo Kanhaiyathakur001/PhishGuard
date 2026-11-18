@@ -1,6 +1,6 @@
 """Small hand-picked real-world spot check (20 legitimate, 8 phishing-style URLs).
 
-Not a benchmark: a sanity check that the full system does not flag well-known sites.
+Not a benchmark: a sanity check that the system does not flag well-known sites and does flag obvious phishing-style URLs.
 Usage: python scripts/real_world_check.py
 """
 import sys; sys.path.insert(0, __import__('pathlib').Path(__file__).resolve().parent.parent.as_posix())
@@ -36,7 +36,7 @@ https://bafybeigdyrzt5.ipfs.dweb.link/login.html""".split()
 for name,xs in (("LEGIT",legit),("PHISH",phish)):
     print(name)
     for u in xs:
-        r=analyze(u); print(f"  {r['risk']:7s} {r['score']:3d} ml={r['ml_probability']:.2f} rules={r['rule_score']:3d}  {u[:80]}")
+        r=analyze(u); print(f"  {r['risk']:7s} final={r['score']:3d} raw={r['rule_score']:3d}  {u[:80]}")
 
 ok_l = sum(analyze(u)["risk"] == "LOW" for u in legit)
 ok_p = sum(analyze(u)["risk"] == "HIGH" for u in phish)

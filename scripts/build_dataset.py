@@ -9,9 +9,7 @@ Legitimate (label=0), two real sources, no synthetic URLs:
     * 25%: homepages of top-ranked domains from
       https://github.com/zer0h/top-1000000-domains
 
-An earlier version generated benign paths from templates; the resulting model
-flagged real sites such as github.com and wikipedia.org, so it was replaced by
-real URLs (see docs/PROJECT_REPORT.md, "Lessons learned").
+The file is used by scripts/evaluate.py to measure how well the rule engine does.
 
 The benign sources have no scheme, so http/https is assigned at random with the
 same https rate as the phishing class. That stops "https" being a label shortcut
