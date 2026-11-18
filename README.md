@@ -155,7 +155,7 @@ docs/              PROJECT_REPORT.md
 - Browser extension front-end
 
 ## Author
-Add your name, roll number, course and guide here.
+Kanhaiya Kumar
 
 ## Disclaimer
 For educational and defensive use only. Do not use it as the sole basis for security decisions.
