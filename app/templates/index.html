@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhishGuard · Phishing URL Detector</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#5b6670; --line:#e2e6ea;
+          --accent:#2457c5; --low:#1a7f45; --med:#b26a00; --high:#c62828; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12161b; --card:#1b2128; --ink:#e8ecf0; --muted:#9aa6b2; --line:#2c353e;
+            --accent:#6f9bff; --low:#4cc47f; --med:#e8a53a; --high:#ff6b6b; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { margin:0 0 4px; font-size:1.7rem; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px; }
+  form { display:flex; gap:8px; flex-wrap:wrap; }
+  input[type=text] { flex:1 1 320px; padding:12px; font-size:1rem; border:1px solid var(--line);
+         border-radius:8px; background:var(--bg); color:var(--ink); }
+  button { padding:12px 20px; font-size:1rem; border:0; border-radius:8px; background:var(--accent);
+           color:#fff; cursor:pointer; }
+  .badge { display:inline-block; padding:4px 12px; border-radius:999px; font-weight:700; color:#fff; }
+  .LOW { background:var(--low); } .MEDIUM { background:var(--med); } .HIGH { background:var(--high); }
+  .INVALID { background:var(--muted); }
+  .url { font-family:ui-monospace,Menlo,Consolas,monospace; word-break:break-all; color:var(--muted); }
+  .bar { height:10px; background:var(--line); border-radius:6px; overflow:hidden; margin:10px 0; }
+  .bar > span { display:block; height:100%; background:var(--accent); }
+  ul { padding-left:20px; margin:8px 0 0; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:12px 0; }
+  .grid div { background:var(--bg); border-radius:8px; padding:10px; text-align:center; }
+  .grid b { display:block; font-size:1.3rem; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  footer { color:var(--muted); font-size:.85rem; margin-top:24px; }
+  @media (max-width:520px) { .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>PhishGuard</h1>
+  <p class="sub">Paste a URL to check it for phishing indicators. The URL is analysed as text only; it is never visited.</p>
+
+  <div class="card">
+    <form method="post" action="/analyze">
+      <input type="text" name="url" placeholder="e.g. http://paypa1-login.secure.example.xyz/verify"
+             value="{{ submitted or '' }}" maxlength="2048" required autofocus aria-label="URL to analyze">
+      <button type="submit">Analyze</button>
+    </form>
+  </div>
+
+  {% if result %}
+  <div class="card" id="result">
+    <span class="badge {{ result.risk }}">{{ result.risk }}</span>
+    <div class="url" style="margin-top:10px">{{ result.url_defanged }}</div>
+    {% if result.valid %}
+      <div class="bar" role="img" aria-label="Risk score {{ result.score }} out of 100"><span style="width:{{ result.score }}%"></span></div>
+      <div class="grid">
+        <div><b>{{ result.score }}/100</b><span class="muted">Combined score</span></div>
+        <div><b>{% if result.ml_probability is not none %}{{ '%.1f' % (result.ml_probability * 100) }}%{% else %}n/a{% endif %}</b><span class="muted">ML phishing probability</span></div>
+        <div><b>{{ result.rule_score }}/100</b><span class="muted">Rule score</span></div>
+      </div>
+      {% if result.trusted_domain %}<p class="muted">This domain is on the list of the 20,000 most popular websites, which lowers the score.</p>{% endif %}
+      <strong>Why?</strong>
+      {% if result.findings %}
+        <ul>{% for f in result.findings %}<li>{{ f }}</li>{% endfor %}</ul>
+      {% else %}
+        <p class="muted">No rule-based indicators were triggered.</p>
+      {% endif %}
+      {% if result.signals %}
+        <p class="muted" style="margin-top:14px">Most influential model features for this URL:
+        {% for s in result.signals %}<code>{{ s.feature }}={{ s.value }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+      {% endif %}
+    {% else %}
+      <p>{{ result.error }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <footer>PhishGuard v{{ version }} · Educational / defensive use only. A LOW result is not a guarantee of safety.
+  API: <code>POST /api/analyze</code> with <code>{"url": "..."}</code></footer>
+</main>
+</body>
+</html>

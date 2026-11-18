@@ -1,0 +1,10 @@
+# Sample URLs for bulk mode. Lines starting with # are ignored.
+https://www.wikipedia.org/
+https://github.com/anthropics
+https://www.paypal.com/signin
+http://paypa1-login.secure.example.xyz/verify
+http://192.168.10.5:8080/bank/update/account.php
+https://google.com@evil-site.top/login
+https://bit.ly/3xAmPle
+http://secure-microsoft-office365.account-verify.example.tk/confirm
+http://xn--pple-43d.com/id/signin
